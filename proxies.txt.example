@@ -1,0 +1,13 @@
+# Proxy list file
+# One proxy per line
+# Supported formats:
+#   http://host:port
+#   https://host:port
+#   socks5://host:port
+#   socks5h://host:port (DNS resolution via proxy)
+#
+# Lines starting with # are comments
+
+http://proxy1.example.com:8080
+http://proxy2.example.com:8080
+socks5://proxy3.example.com:1080
