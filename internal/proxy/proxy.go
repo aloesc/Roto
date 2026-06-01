@@ -192,6 +192,14 @@ func (m *Manager) httpConnect(conn net.Conn, target string) (net.Conn, error) {
 		Header: make(http.Header),
 	}
 
+	// Добавляем Proxy-Authorization если есть учётные данные
+	if proxyURL := m.getProxyURL(); proxyURL != nil {
+		if username := proxyURL.User.Username(); username != "" {
+			password, _ := proxyURL.User.Password()
+			req.SetBasicAuth(username, password)
+		}
+	}
+
 	err := req.Write(conn)
 	if err != nil {
 		conn.Close()
@@ -215,6 +223,18 @@ func (m *Manager) httpConnect(conn net.Conn, target string) (net.Conn, error) {
 
 	// Возвращаем обёрнутое соединение с буферизированным читателем
 	return &bufferedConn{Conn: conn, reader: reader}, nil
+}
+
+// getProxyURL возвращает URL текущего прокси (для аутентификации)
+func (m *Manager) getProxyURL() *url.URL {
+	if m.pool == nil {
+		return nil
+	}
+	proxy := m.pool.GetProxy()
+	if proxy == nil {
+		return nil
+	}
+	return proxy.URL
 }
 
 // socks5Connect выполняет SOCKS5 handshake
