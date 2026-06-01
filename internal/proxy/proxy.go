@@ -86,6 +86,7 @@ func (m *Manager) dialDirect(ctx context.Context, network, addr string) (net.Con
 }
 
 // dialViaProxy создаёт соединение через upstream прокси
+// Если пул пустой (нет upstream прокси), соединяется напрямую
 func (m *Manager) dialViaProxy(ctx context.Context, network, addr string) (net.Conn, error) {
 	if network != "tcp" && network != "tcp4" && network != "tcp6" {
 		return nil, fmt.Errorf("unsupported network: %s", network)
@@ -94,7 +95,11 @@ func (m *Manager) dialViaProxy(ctx context.Context, network, addr string) (net.C
 	// Получаем следующий прокси из пула
 	proxy := m.pool.GetNextProxy()
 	if proxy == nil {
-		return nil, &ProxyError{Target: addr, Err: fmt.Errorf("no proxies available")}
+		// Если пул пустой, работаем как прямой прокси (без upstream)
+		if m.enableLogs {
+			logf("[PROXY] No upstream proxies configured, connecting directly to %s", addr)
+		}
+		return m.dialDirect(ctx, network, addr)
 	}
 
 	// Пытаемся подключиться через прокси (с failover)
