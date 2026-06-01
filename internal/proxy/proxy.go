@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -74,7 +75,7 @@ func (m *Manager) DialContext(ctx context.Context, network, addr string) (net.Co
 // dialDirect создаёт прямое соединение в обход прокси
 func (m *Manager) dialDirect(ctx context.Context, network, addr string) (net.Conn, error) {
 	if m.enableLogs {
-		logf("[PROXY] Bypassing proxy for %s", addr)
+		log.Printf("[PROXY] Bypassing proxy for %s", addr)
 	}
 
 	dialer := &net.Dialer{
@@ -97,7 +98,7 @@ func (m *Manager) dialViaProxy(ctx context.Context, network, addr string) (net.C
 	if proxy == nil {
 		// Если пул пустой, работаем как прямой прокси (без upstream)
 		if m.enableLogs {
-			logf("[PROXY] No upstream proxies configured, connecting directly to %s", addr)
+			log.Printf("[PROXY] No upstream proxies configured, connecting directly to %s", addr)
 		}
 		return m.dialDirect(ctx, network, addr)
 	}
@@ -119,7 +120,7 @@ func (m *Manager) dialWithFailover(ctx context.Context, network, target string, 
 			// Успешное подключение
 			m.pool.MarkHealthy(proxy)
 			if m.enableLogs {
-				logf("[PROXY] Connected to %s via %s", target, proxy.Host)
+				log.Printf("[PROXY] Connected to %s via %s", target, proxy.Host)
 			}
 			return conn, nil
 		}
@@ -128,7 +129,7 @@ func (m *Manager) dialWithFailover(ctx context.Context, network, target string, 
 		m.pool.MarkUnhealthy(proxy)
 
 		if m.enableLogs {
-			logf("[PROXY] Failed to connect via %s: %v", proxy.Host, err)
+			log.Printf("[PROXY] Failed to connect via %s: %v", proxy.Host, err)
 		}
 
 		// Если failover отключён, не пробуем другие прокси
@@ -185,7 +186,7 @@ func (m *Manager) dialThroughProxy(ctx context.Context, network, target string, 
 // httpConnect выполняет HTTP CONNECT запрос к прокси
 func (m *Manager) httpConnect(conn net.Conn, target string, proxyURL *url.URL) (net.Conn, error) {
 	if m.enableLogs {
-		logf("[HTTP] Sending CONNECT to %s via proxy %s", target, proxyURL.Host)
+		log.Printf("[HTTP] Sending CONNECT to %s via proxy %s", target, proxyURL.Host)
 	}
 
 	// Отправляем CONNECT запрос
@@ -202,13 +203,13 @@ func (m *Manager) httpConnect(conn net.Conn, target string, proxyURL *url.URL) (
 			password, _ := proxyURL.User.Password()
 			req.SetBasicAuth(username, password)
 			if m.enableLogs {
-				logf("[HTTP] Using basic auth for proxy: user=%s", username)
+				log.Printf("[HTTP] Using basic auth for proxy: user=%s", username)
 			}
 		}
 	}
 
 	if m.enableLogs {
-		logf("[HTTP] CONNECT request headers: %v", req.Header)
+		log.Printf("[HTTP] CONNECT request headers: %v", req.Header)
 	}
 
 	err := req.Write(conn)
@@ -227,7 +228,7 @@ func (m *Manager) httpConnect(conn net.Conn, target string, proxyURL *url.URL) (
 	defer resp.Body.Close()
 
 	if m.enableLogs {
-		logf("[HTTP] Proxy response status: %s", resp.Status)
+		log.Printf("[HTTP] Proxy response status: %s", resp.Status)
 	}
 
 	// Проверяем статус ответа (200 OK или 204 No Content)
@@ -372,7 +373,3 @@ func (bc *bufferedConn) Read(p []byte) (int, error) {
 	return bc.reader.Read(p)
 }
 
-// logf выводит лог-сообщение
-func logf(format string, args ...interface{}) {
-	// Простая реализация логирования
-}

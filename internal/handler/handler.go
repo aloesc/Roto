@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -68,13 +69,15 @@ func (h *Handler) handleHTTPS(w http.ResponseWriter, r *http.Request) {
 	target := r.Host
 
 	if h.enableLogs {
-		logf("[HTTPS] CONNECT request for %s from %s", target, h.getClientIP(r))
+		log.Printf("[HTTPS] CONNECT request for %s from %s", target, h.getClientIP(r))
 	}
 
 	// Создаём соединение с целевым хостом
 	conn, err := h.proxyManager.DialContext(r.Context(), "tcp", target)
 	if err != nil {
-		h.logError("CONNECT failed", target, err)
+		if h.enableLogs {
+			log.Printf("[ERROR] CONNECT failed for %s: %v", target, err)
+		}
 		http.Error(w, fmt.Sprintf("failed to establish connection: %v", err), http.StatusBadGateway)
 		return
 	}
@@ -129,7 +132,7 @@ func (h *Handler) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.enableLogs {
-		logf("[HTTP] %s %s from %s", r.Method, target, h.getClientIP(r))
+		log.Printf("[HTTP] %s %s from %s", r.Method, target, h.getClientIP(r))
 	}
 
 	// Создаём транспорт для проксирования запроса
@@ -243,7 +246,7 @@ func (h *Handler) copyBidirectional(client, server net.Conn, target string) {
 	// Логируем ошибки если есть
 	for err := range errChan {
 		if h.enableLogs {
-			logf("[HTTPS] Error copying data for %s: %v", target, err)
+			log.Printf("[HTTPS] Error copying data for %s: %v", target, err)
 		}
 	}
 }
@@ -293,13 +296,8 @@ func (h *Handler) logError(msg, target string, err error) {
 	}
 
 	if err != nil {
-		logf("[ERROR] %s for %s: %v", msg, target, err)
+		log.Printf("[ERROR] %s for %s: %v", msg, target, err)
 	} else {
-		logf("[ERROR] %s for %s", msg, target)
+		log.Printf("[ERROR] %s for %s", msg, target)
 	}
-}
-
-// logf выводит лог-сообщение
-func logf(format string, args ...interface{}) {
-	// Простая реализация логирования
 }
