@@ -170,7 +170,7 @@ func (m *Manager) dialThroughProxy(ctx context.Context, network, target string, 
 
 	// Для HTTP/HTTPS прокси используем CONNECT метод
 	if proxy.Scheme == "http" || proxy.Scheme == "https" {
-		return m.httpConnect(proxyConn, target)
+		return m.httpConnect(proxyConn, target, proxy.URL)
 	}
 
 	// Для SOCKS5 нужна отдельная реализация
@@ -183,7 +183,11 @@ func (m *Manager) dialThroughProxy(ctx context.Context, network, target string, 
 }
 
 // httpConnect выполняет HTTP CONNECT запрос к прокси
-func (m *Manager) httpConnect(conn net.Conn, target string) (net.Conn, error) {
+func (m *Manager) httpConnect(conn net.Conn, target string, proxyURL *url.URL) (net.Conn, error) {
+	if m.enableLogs {
+		logf("[HTTP] Sending CONNECT to %s via proxy %s", target, proxyURL.Host)
+	}
+
 	// Отправляем CONNECT запрос
 	req := &http.Request{
 		Method: "CONNECT",
@@ -193,11 +197,18 @@ func (m *Manager) httpConnect(conn net.Conn, target string) (net.Conn, error) {
 	}
 
 	// Добавляем Proxy-Authorization если есть учётные данные
-	if proxyURL := m.getProxyURL(); proxyURL != nil {
+	if proxyURL != nil && proxyURL.User != nil {
 		if username := proxyURL.User.Username(); username != "" {
 			password, _ := proxyURL.User.Password()
 			req.SetBasicAuth(username, password)
+			if m.enableLogs {
+				logf("[HTTP] Using basic auth for proxy: user=%s", username)
+			}
 		}
+	}
+
+	if m.enableLogs {
+		logf("[HTTP] CONNECT request headers: %v", req.Header)
 	}
 
 	err := req.Write(conn)
@@ -215,6 +226,10 @@ func (m *Manager) httpConnect(conn net.Conn, target string) (net.Conn, error) {
 	}
 	defer resp.Body.Close()
 
+	if m.enableLogs {
+		logf("[HTTP] Proxy response status: %s", resp.Status)
+	}
+
 	// Проверяем статус ответа (200 OK или 204 No Content)
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != 204 {
 		conn.Close()
@@ -223,18 +238,6 @@ func (m *Manager) httpConnect(conn net.Conn, target string) (net.Conn, error) {
 
 	// Возвращаем обёрнутое соединение с буферизированным читателем
 	return &bufferedConn{Conn: conn, reader: reader}, nil
-}
-
-// getProxyURL возвращает URL текущего прокси (для аутентификации)
-func (m *Manager) getProxyURL() *url.URL {
-	if m.pool == nil {
-		return nil
-	}
-	proxy := m.pool.GetProxy()
-	if proxy == nil {
-		return nil
-	}
-	return proxy.URL
 }
 
 // socks5Connect выполняет SOCKS5 handshake
